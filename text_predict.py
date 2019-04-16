@@ -20,16 +20,8 @@ def predict(sentences):
 
     _,word_to_id=read_vocab(config.vocab_filename)
     input_x= process_file(sentences,word_to_id,max_length=config.seq_length)
-    labels = {0:'体育',
-              1:'财经',
-              2:'房产',
-              3:'家居',
-              4:'教育',
-              5:'科技',
-              6:'时尚',
-              7:'时政',
-              8:'游戏',
-              9:'娱乐'
+    labels = {0:'ham',
+              1:'spam',
               }
 
     feed_dict = {

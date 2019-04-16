@@ -8,7 +8,7 @@ class TextConfig():
     pre_trianing = None   #use vector_char trained by word2vec
 
     seq_length=600         #max length of sentence
-    num_classes=10         #number of labels
+    num_classes=2         #number of labels
 
     num_filters=128        #number of convolution kernel
     filter_sizes=[2,3,4]   #size of convolution kernel
@@ -24,9 +24,9 @@ class TextConfig():
     batch_size=64         #batch_size
     print_per_batch =100   #print result
 
-    train_filename='./data/cnews.train.txt'  #train data
-    test_filename='./data/cnews.test.txt'    #test data
-    val_filename='./data/cnews.val.txt'      #validation data
+    train_filename='./data/email_train.txt'  #train data
+    test_filename='./data/email_test.txt'    #test data
+    val_filename='./data/email_val.txt'      #validation data
     vocab_filename='./data/vocab.txt'        #vocabulary
     vector_word_filename='./data/vector_word.txt'  #vector_word trained by word2vec
     vector_word_npz='./data/vector_word.npz'   # save vector_word to numpy file
@@ -50,7 +50,11 @@ class TextCNN(object):
             self.embedding = tf.get_variable("embeddings", shape=[self.config.vocab_size, self.config.embedding_size],
                                              initializer=tf.constant_initializer(self.config.pre_trianing))
             self.embedding_inputs= tf.nn.embedding_lookup(self.embedding, self.input_x)
+            print "embedding_inputs:"
+            print self.embedding_inputs
             self.embedding_inputs_expanded = tf.expand_dims(self.embedding_inputs, -1)
+            print "embedding_inputs_expanded:"
+            print self.embedding_inputs_expanded
 
         with tf.name_scope('cnn'):
             pooled_outputs = []
@@ -66,6 +70,8 @@ class TextCNN(object):
                         strides=[1, 1, 1, 1],
                         padding="VALID",
                         name="conv")
+                    print "conv-%s" % filter_size
+                    print conv
                     h = tf.nn.relu(tf.nn.bias_add(conv, b), name="relu")
                     pooled = tf.nn.max_pool(
                         h,
@@ -73,11 +79,19 @@ class TextCNN(object):
                         strides=[1, 1, 1, 1],
                         padding='VALID',
                         name="pool")
+                    print "pooled:"
+                    print pooled
                     pooled_outputs.append(pooled)
+            print "pooled_outputs:"
+            print pooled_outputs
 
             num_filters_total = self.config.num_filters * len(self.config.filter_sizes)
             self.h_pool = tf.concat(pooled_outputs, 3)
+            print "h_pool:"
+            print self.h_pool
             self.outputs= tf.reshape(self.h_pool, [-1, num_filters_total])
+            print "outputs"
+            print self.outputs
 
 
         with tf.name_scope("dropout"):

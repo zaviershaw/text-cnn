@@ -81,7 +81,7 @@ def read_category():
         cat_to_id: a dict of label to id
 
     """
-    categories = ['体育', '财经', '房产', '家居', '教育', '科技', '时尚', '时政', '游戏', '娱乐']
+    categories = ['ham', 'spam']
     cat_to_id=dict(zip(categories,range(len(categories))))
     return categories,cat_to_id
 
