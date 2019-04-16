@@ -41,8 +41,10 @@ def train():
     save_dir = './checkpoints/textcnn'
     if not os.path.exists(tensorboard_dir):
         os.makedirs(tensorboard_dir)
+        print 2222
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+        print 1111
     save_path = os.path.join(save_dir, 'best_validation')
 
     print("Loading training and validation data...")

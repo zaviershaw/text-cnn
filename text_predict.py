@@ -21,7 +21,7 @@ def predict(sentences):
     _,word_to_id=read_vocab(config.vocab_filename)
     input_x= process_file(sentences,word_to_id,max_length=config.seq_length)
     labels = {0:'ham',
-              1:'spam',
+              1:'spam'
               }
 
     feed_dict = {
@@ -32,12 +32,12 @@ def predict(sentences):
     session.run(tf.global_variables_initializer())
     saver = tf.train.Saver()
     saver.restore(sess=session, save_path=save_path)
-    y_prob=session.run(model.prob, feed_dict=feed_dict)
+    y_prob=session.run(model.y_pred_cls, feed_dict=feed_dict)
     y_prob=y_prob.tolist()
     cat=[]
     for prob in y_prob:
-        top2= list(map(prob.index, heapq.nlargest(1, prob)))
-        cat.append(labels[top2[0]])
+        #top2= list(map(prob.index, heapq.nlargest(1, prob)))
+        cat.append(labels[prob])
     tf.reset_default_graph()
     return  cat
 
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     import random
     sentences=[]
     labels=[]
-    with codecs.open('./data/cnews.test.txt','r',encoding='utf-8') as f:
+    with codecs.open('./data/email_test.txt','r',encoding='utf-8') as f:
         sample=random.sample(f.readlines(),5)
         for line in sample:
             try:

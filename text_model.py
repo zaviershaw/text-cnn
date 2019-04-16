@@ -8,21 +8,23 @@ class TextConfig():
     pre_trianing = None   #use vector_char trained by word2vec
 
     seq_length=600         #max length of sentence
-    num_classes=2         #number of labels
+    num_classes=2          #number of labels
 
     num_filters=128        #number of convolution kernel
     filter_sizes=[2,3,4]   #size of convolution kernel
 
 
+    hidden_dim = 128       #全连接层神经元
     keep_prob=0.5          #droppout
-    lr= 1e-3               #learning rate
-    lr_decay= 0.9          #learning rate decay
+    lr= 1e-3                #learning rate
+    lr_decay= 0.3          #learning rate decay
     clip= 6.0              #gradient clipping threshold
     l2_reg_lambda=0.01     #l2 regularization lambda
 
     num_epochs=10          #epochs
-    batch_size=64         #batch_size
+    batch_size=64          #batch_size
     print_per_batch =100   #print result
+    save_per_batch = 10    #save result to tensorboard
 
     train_filename='./data/email_train.txt'  #train data
     test_filename='./data/email_test.txt'    #test data
@@ -41,83 +43,61 @@ class TextCNN(object):
         self.input_y=tf.placeholder(tf.float32,shape=[None,self.config.num_classes],name='input_y')
         self.keep_prob=tf.placeholder(tf.float32,name='dropout')
         self.global_step = tf.Variable(0, trainable=False, name='global_step')
-        self.l2_loss = tf.constant(0.0)
+        #self.l2_loss = tf.constant(0.0)
 
         self.cnn()
     def cnn(self):
-
+        # 词向量映射
         with tf.device('/cpu:0'):
-            self.embedding = tf.get_variable("embeddings", shape=[self.config.vocab_size, self.config.embedding_size],
-                                             initializer=tf.constant_initializer(self.config.pre_trianing))
+            self.embedding = tf.get_variable("embeddings", shape=[self.config.vocab_size, self.config.embedding_size])
             self.embedding_inputs= tf.nn.embedding_lookup(self.embedding, self.input_x)
-            print "embedding_inputs:"
-            print self.embedding_inputs
-            self.embedding_inputs_expanded = tf.expand_dims(self.embedding_inputs, -1)
-            print "embedding_inputs_expanded:"
-            print self.embedding_inputs_expanded
+            #self.embedding_inputs_expanded = tf.expand_dims(self.embedding_inputs, -1)
 
         with tf.name_scope('cnn'):
             pooled_outputs = []
             for i, filter_size in enumerate(self.config.filter_sizes):
-                with tf.name_scope("conv-maxpool-%s" % filter_size):
+                # CNN layer
+                conv = tf.layers.conv1d(self.embedding_inputs, self.config.num_filters, filter_size, name='conv-%s' % filter_size)
+                # global max pooling layer
+                gmp = tf.reduce_max(conv, reduction_indices=[1], name='gmp')
+                pooled_outputs.append(gmp)  
 
-                    filter_shape = [filter_size, self.config.embedding_size, 1, self.config.num_filters]
-                    W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name="W")
-                    b = tf.Variable(tf.constant(0.1, shape=[self.config.num_filters]), name="b")
-                    conv = tf.nn.conv2d(
-                        self.embedding_inputs_expanded,
-                        W,
-                        strides=[1, 1, 1, 1],
-                        padding="VALID",
-                        name="conv")
-                    print "conv-%s" % filter_size
-                    print conv
-                    h = tf.nn.relu(tf.nn.bias_add(conv, b), name="relu")
-                    pooled = tf.nn.max_pool(
-                        h,
-                        ksize=[1, self.config.seq_length - filter_size + 1, 1, 1],
-                        strides=[1, 1, 1, 1],
-                        padding='VALID',
-                        name="pool")
-                    print "pooled:"
-                    print pooled
-                    pooled_outputs.append(pooled)
-            print "pooled_outputs:"
-            print pooled_outputs
-
-            num_filters_total = self.config.num_filters * len(self.config.filter_sizes)
-            self.h_pool = tf.concat(pooled_outputs, 3)
-            print "h_pool:"
-            print self.h_pool
-            self.outputs= tf.reshape(self.h_pool, [-1, num_filters_total])
-            print "outputs"
-            print self.outputs
+            self.h_pool = tf.concat(pooled_outputs, 1)
+            #self.outputs= tf.reshape(self.h_pool, [-1, num_filters_total])
 
 
-        with tf.name_scope("dropout"):
-            self.final_output = tf.nn.dropout(self.outputs, self.keep_prob)
+        with tf.name_scope("score"):
+            # 全连接层，后面接dropout以及relu激活
+            fc = tf.layers.dense(self.h_pool, self.config.hidden_dim, name='fc1')
+            fc = tf.contrib.layers.dropout(fc, self.keep_prob)
+            fc = tf.nn.relu(fc)
 
-        with tf.name_scope('output'):
-            fc_w = tf.get_variable('fc_w', shape=[self.final_output.shape[1].value, self.config.num_classes],
-                                   initializer=tf.contrib.layers.xavier_initializer())
-            fc_b = tf.Variable(tf.constant(0.1, shape=[self.config.num_classes]), name='fc_b')
-            self.logits = tf.matmul(self.final_output, fc_w) + fc_b
-            self.prob=tf.nn.softmax(self.logits)
-            self.y_pred_cls = tf.argmax(self.logits, 1, name='predictions')
+            # 分类器
+            self.logits = tf.layers.dense(fc, self.config.num_classes, name='fc2')
+            self.y_pred_cls = tf.argmax(tf.nn.softmax(self.logits), 1)  # 预测类别
 
+        #损失函数，交叉熵
         with tf.name_scope('loss'):
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits, labels=self.input_y)
-            self.l2_loss += tf.nn.l2_loss(fc_w)
-            self.l2_loss += tf.nn.l2_loss(fc_b)
-            self.loss = tf.reduce_mean(cross_entropy) + self.config.l2_reg_lambda * self.l2_loss
+            #self.l2_loss += tf.nn.l2_loss(fc_w)
+            #self.l2_loss += tf.nn.l2_loss(fc_b)
+            #self.loss = tf.reduce_mean(cross_entropy) + self.config.l2_reg_lambda * self.l2_loss
             self.loss = tf.reduce_mean(cross_entropy)
 
+        #优化器
         with tf.name_scope('optimizer'):
+            #学习率衰减
+            #starter_learning_rate = self.config.lr
+            #learning_rate = tf.train.exponential_decay(starter_learning_rate, self.global_step,3, self.config.lr_decay, staircase=True)
             optimizer = tf.train.AdamOptimizer(self.config.lr)
+            #compute_gradients()计算梯度
             gradients, variables = zip(*optimizer.compute_gradients(self.loss))
+            #clip_by_global_norm:修正梯度值
             gradients, _ = tf.clip_by_global_norm(gradients, self.config.clip)
+            #apply_gradients()应用梯度
             self.optim = optimizer.apply_gradients(zip(gradients, variables), global_step=self.global_step)
 
+        #准确率
         with tf.name_scope('accuracy'):
             correct_pred=tf.equal(tf.argmax(self.input_y,1),self.y_pred_cls)
             self.acc=tf.reduce_mean(tf.cast(correct_pred,tf.float32))
